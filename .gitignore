@@ -1,0 +1,6 @@
+__pycache__
+*.txt
+/store
+/saved_models
+/save_blackbox
+test.ipynb
