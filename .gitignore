@@ -1,5 +1,4 @@
 __pycache__
-*.txt
 /saved_models
 /save_blackbox
 test.ipynb
