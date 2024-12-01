@@ -7,13 +7,32 @@ Advances in technology have facilitated the trans formation of transportation sy
 ![ Framework Overview](figures/Framework_Overview.jpg)
 
 ### Requirements
+To install requirements, run:
 ```bash
 pip install -r requirements.txt
 ```
 
 ### Data Preparation
+Download data from this repository [github](https://github.com/Jimmy-7664/STD-MAE) (The data file should be renamed to `data.h5` or `data.npz`). The data folder `store` should be organized as follow:
 ```bash
+/store
+|----/[Dataset Name]
+|    |
+|    |----adj_mx.pkl
+|----/raw
+     |
+     |----/[Dataset Name]
+          |
+          |----data.[h5 or npz]
+```
+Then run this script to preprocess data:
+```bash
+python generate_data.py --dataset METR-LA
+```
 
+### Run MSTE
+```bash
+python run.py
 ```
 
 ### Run STEP
