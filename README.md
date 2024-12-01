@@ -38,4 +38,4 @@ python run.py
 ### Run STEP
 ```bash
 cd STEP
-python main_XAI.p
+python main_XAI.py
