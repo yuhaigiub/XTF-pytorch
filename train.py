@@ -54,7 +54,6 @@ def parse_args():
     
     parser.add_argument('--decoder_types', type=str, default='1,1',
                         help='number separated by comma (no whitespace allowed)')
-    parser.add_argument('--agg_type', type=str, default='mean', choices=['sum', 'mean'])
     
     args = parser.parse_args()
     
@@ -95,8 +94,7 @@ def main(args):
                  args.time_1, args.step_1,
                  args.time_2, args.step_2,
                  decoder_types,
-                 args.dropout,
-                 args.agg_type)
+                 args.dropout)
     model.to(device)
     
     # load checkpoint
