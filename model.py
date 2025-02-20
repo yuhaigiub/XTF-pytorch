@@ -6,14 +6,21 @@ from torch import nn, Tensor
 import torchdiffeq
 
 class MSTE(nn.Module):
-    def __init__(self, n_experts: int, n_stacks: int, 
+    def __init__(self, 
+                 n_experts: int, 
+                 n_stacks: int, 
                  in_dim, seq_len,
                  conv_dim, end_dim,
                  adj_mx,
                  time_0, step_size_0,
                  time_1, step_size_1,
-                 time_2, step_size_2):
+                 time_2, step_size_2,
+                 decoder_types=[1, 1],
+                 dropout=0.1):
         super().__init__()
+        
+        self.weights = nn.Parameter(torch.ones(n_experts, requires_grad=True))
+        
         self.experts = nn.ModuleList()
         # self.linears = nn.ModuleList()
         for _ in range(n_experts):
@@ -23,16 +30,23 @@ class MSTE(nn.Module):
                               adj_mx,
                               time_0, step_size_0,
                               time_1, step_size_1,
-                              time_2, step_size_2)
+                              time_2, step_size_2,
+                              decoder_types, 
+                              dropout)
             self.experts.append(expert)
     
     def forward(self, X: Tensor) -> Tensor:
-        out = torch.zeros_like(X[..., 0:1]).type_as(X)
+        out = []
         
         for i in range(len(self.experts)):
             y: Tensor = self.experts[i](X)
             # out = out + self.linears[i](y)
-            out = out + y
+            out.append(y)
+        
+        weights = self.weights.view(-1, 1, 1, 1, 1)
+        out = torch.stack(out, dim=0)
+        
+        out = torch.sum(weights * out, dim=0)
         
         return out
 
@@ -43,7 +57,9 @@ class STExpert(nn.Module):
                  adj_mx,
                  time_0, step_size_0,
                  time_1, step_size_1,
-                 time_2, step_size_2):
+                 time_2, step_size_2,
+                 decoder_types,
+                 dropout):
         super().__init__()
         self.stacks = nn.ModuleList()
         for _ in range(n_stacks):
@@ -52,7 +68,9 @@ class STExpert(nn.Module):
                             adj_mx,
                             time_0, step_size_0,
                             time_1, step_size_1,
-                            time_2, step_size_2)
+                            time_2, step_size_2,
+                            decoder_types,
+                            dropout)
             self.stacks.append(stack)
         
         self.backcasts = []
@@ -79,7 +97,9 @@ class STStack(nn.Module):
                  adj_mx: Tensor,
                  time_0, step_size_0,
                  time_1, step_size_1,
-                 time_2, step_size_2):
+                 time_2, step_size_2,
+                 decoder_types,
+                 dropout):
         super().__init__()
         self.time_0 = time_0
         self.step_size_0 = step_size_0
@@ -96,7 +116,9 @@ class STStack(nn.Module):
             block = STBlock(in_dim, seq_len,
                             conv_dim, end_dim,
                             time_1, step_size_1, 
-                            time_2, step_size_2)
+                            time_2, step_size_2,
+                            decoder_types,
+                            dropout)
             block.ODE.set_adj(adj_mx)
             self.blocks.append(block)
     
@@ -121,10 +143,15 @@ class STBlock(nn.Module):
                  in_dim, seq_len,
                  conv_dim, end_dim,
                  time_1, step_size_1,
-                 time_2, step_size_2):
+                 time_2, step_size_2,
+                 decoder_types,
+                 dropout):
         super().__init__()
         self.in_dim = in_dim
         self.seq_len = seq_len
+        self.conv_dim = conv_dim
+        self.end_dim = end_dim
+        
         self.time_1 = time_1
         self.step_size_1 = step_size_1
         
@@ -135,21 +162,30 @@ class STBlock(nn.Module):
         
         self.start_conv = nn.Conv2d(in_dim, conv_dim, kernel_size=(1, 1))
         
-        self.ODE = STEncoder(self.receptive_field, 1, conv_dim, time_2, step_size_2)
+        self.ODE = STEncoder(self.receptive_field, 1, conv_dim, time_2, step_size_2, dropout)
         
-        self.backcast_decoder = nn.Sequential(
-            nn.Conv2d(conv_dim, end_dim, kernel_size=(1, 1)),
-            nn.ReLU(),
-            nn.Conv2d(end_dim, seq_len, kernel_size=(1, 1))
-        )
-        
-        self.forecast_decoder = nn.Sequential(
-            nn.Conv2d(conv_dim, end_dim, kernel_size=(1, 1)),
-            nn.ReLU(),
-            nn.Conv2d(end_dim, seq_len, kernel_size=(1, 1))
-        )
+        self.backcast_decoder = self._create_decoder(decoder_types[0])
+        self.forecast_decoder = self._create_decoder(decoder_types[1])
         
         self.forecast = None
+    
+    def _create_decoder(self, decoder_type: int):
+        if decoder_type == 1:
+            return nn.Sequential(
+                nn.Conv2d(self.conv_dim, self.end_dim, kernel_size=(1, 1)),
+                nn.ReLU(),
+                nn.Conv2d(self.end_dim, self.seq_len, kernel_size=(1, 1)),
+            )
+        elif decoder_type == 2:
+            return nn.Sequential(
+                nn.Conv2d(self.conv_dim, self.end_dim *2, kernel_size=(1, 1)),
+                nn.ReLU(),
+                nn.Conv2d(self.end_dim * 2, self.end_dim, kernel_size=(1, 1)),
+                nn.ReLU(),
+                nn.Conv2d(self.end_dim, self.seq_len, kernel_size=(1, 1)),
+            )
+        else:
+            raise Exception("Invalid decoder type")
     
     def forward(self, t, X: Tensor):
         '''
@@ -183,7 +219,7 @@ class STEncoder(nn.Module):
                  receptive_field, dilation,
                  hidden_dim,
                  time_2, step_size_2,
-                 dropout=0.5):
+                 dropout):
         super().__init__()
         self.dropout= dropout
         self.receptive_field = receptive_field
@@ -224,7 +260,11 @@ class STEncoder(nn.Module):
         return x
     
     def set_adj(self, adj: Tensor):
-        self.adj = adj
+        adj = adj + torch.eye(adj.size(0)).to(adj.device)
+        d = adj.sum(1)
+        _d = torch.diag(torch.pow(d, -0.5))
+        
+        self.adj = torch.mm(torch.mm(_d, adj), _d)
     
     def set_intermediate(self, dilation):
         self.new_dilation = dilation
@@ -291,7 +331,7 @@ class CGPODE(nn.Module):
         self.mlp = linear((self.nfe + 1) * in_dim, out_dim)
     
     def forward(self, x: Tensor, adj: Tensor):
-        self.odefunc.set_x0(x)
+        # self.odefunc.set_x0(x)
         self.odefunc.set_adj(adj)
         
         t = torch.linspace(0, self.time, self.nfe+1).float().type_as(x)
@@ -300,7 +340,6 @@ class CGPODE(nn.Module):
         outs = self.odefunc.out
         self.odefunc.out = []
         outs.append(out[-1])
-        
         h_out = torch.cat(outs, dim=1)
         h_out = self.mlp(h_out)
         return h_out
@@ -324,15 +363,8 @@ class CGPFunc(nn.Module):
         self.adj = adj
     
     def forward(self, t, x: Tensor):
-        self.adj = self.adj.to(x.device)
-        adj = self.adj + torch.eye(self.adj.size(0)).to(x.device)
-        d = adj.sum(1)
-        _d = torch.diag(torch.pow(d, -0.5))
-        adj_norm = torch.mm(torch.mm(_d, adj), _d)
-        
         self.out.append(x)
         
-        ax = self.conv(x, adj_norm)
-        f = 0.5 * self.alpha * (ax - x)
+        ax = self.conv(x, self.adj)
         
-        return f
+        return ax
