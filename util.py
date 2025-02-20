@@ -84,9 +84,15 @@ def load_pickle(pickle_file):
     return pickle_data
 
 def load_adj(pkl_filename):
-    # sensor_ids, sensor_id_to_ind, adj_mx if METR-LA and PEMS-BAY
-    # adj_mx if PEMS04 and PEMS08
-    return load_pickle(pkl_filename)
+    try:
+        _, _, adj_mx = load_pickle(pkl_filename)
+    except:
+        adj_mx = load_pickle(pkl_filename)
+    
+    # remove self loop
+    np.fill_diagonal(adj_mx, 0.0)
+    
+    return adj_mx
 
 def load_dataset(dataset_dir, 
                  batch_size, 
@@ -164,7 +170,7 @@ def masked_mape(preds, labels, null_val=0.0):
     loss = torch.where(torch.isnan(loss), torch.zeros_like(loss), loss)
     return torch.mean(loss)
 
-def masked_huber(preds, labels, delta=0.8, null_val=0.0):
+def masked_huber(preds, labels, delta=1.0, null_val=0.0):
     if np.isnan(null_val):
         mask = ~torch.isnan(labels)
     else:
