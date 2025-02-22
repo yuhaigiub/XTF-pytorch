@@ -16,6 +16,7 @@ pip install -r requirements.txt
 Download data from this repository [github](https://github.com/Jimmy-7664/STD-MAE) (The data file should be renamed to `data.h5` or `data.npz`). The data folder `store` should be organized as follow:
 ```bash
 /store
+|
 |----/[Dataset Name]
 |    |
 |    |----adj_mx.pkl
@@ -31,11 +32,41 @@ python generate_data.py --dataset METR-LA
 ```
 
 ### Run MSTE
+#### Training
+To run training on any dataset, run the `train.py`. You can reference the `checkpoints/run.sh` file for detailed configurations on each dataset:
 ```bash
-python run.py
+# training METR-LA
+python train.py --dataset METR-LA --batch_size 64 --epochs 100 \
+                --clip 5 --n_experts 3 --n_stacks 2 \
+                --time_0 0.9 --step_0 0.9 \
+                --time_1 0.9 --step_1 0.3 \
+                --time_2 0.9 --step_2 0.3 \
+                --end_dim 128 --decoder_types 1,2
+```
+#### Testing
+To test on any dataset, make sure you have the checkpoint file (`.pth` file) in the right location:
+```bash
+/saved_models
+|
+|----/[Dataset Name]
+     |
+     |----/mste
+          |
+          |----G_T_model_[epoch].pth
+```
+To run testing on any dataset, run the `test.py` script. You can reference the `checkpoints/run.sh` file for running test on the checkpoints provided in the `/checkpoints` folder:
+```bash
+# testing METR-LA (at epoch 99)
+python test.py --dataset METR-LA --start 99 \
+               --n_experts 3 --n_stacks 2 \
+               --time_0 0.9 --step_0 0.9 \
+               --time_1 0.9 --step_1 0.3 \
+               --time_2 0.9 --step_2 0.3 \
+               --end_dim 128 --decoder_type 1,2
 ```
 
 ### Run STEP
 ```bash
 cd STEP
 python main_XAI.py
+```
