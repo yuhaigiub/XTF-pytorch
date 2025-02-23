@@ -99,8 +99,8 @@ class EngineXAI():
         saliency = saliency.transpose(-3, -1)
         top_k_spatial = 30
         top_k_temporal = 4
-        X_node = self.degreeCentrality(saliency, self.adj_mx, top_k_spatial, False)
-        Xm, _ = self.pertubate.apply(X, X_node, top_k_temporal, False)
+        X_node = self.degreeCentrality(saliency, self.adj_mx, top_k_spatial, True)
+        Xm, _ = self.pertubate.apply(X, X_node, top_k_temporal, True)
         Ym = self.blackbox(Xm.transpose(1,3))
         # [batch_size, time_steps, num_nodes, channels]
         Ym = Ym[:, :, :, 0:1]
@@ -123,7 +123,7 @@ class EngineXAI():
         saliency = saliency.transpose(-3, -1)
         top_k_spatial = 30
         top_k_temporal = 4
-        X_node = self.degreeCentrality(saliency, self.adj_mx, top_k_spatial, False)
-        Xm, _ = self.pertubate.apply(X, X_node, top_k_temporal, False)
+        X_node = self.degreeCentrality(saliency, self.adj_mx, top_k_spatial, True)
+        Xm, _ = self.pertubate.apply(X, X_node, top_k_temporal, True)
         Ym = self.blackbox(Xm.transpose(1,3))
         return Y, Ym

@@ -1,14 +1,17 @@
-import numpy as np
+import sys
+import os
+
 import torch
 import networkx as nx
 import torch.nn.functional as F
 import torch.nn as nn
 from captum.attr import DeepLift, GradientShap, Lime, DeepLiftShap
 import shap
-import util
-import torch
+
 from abc import ABC, abstractmethod
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) 
+import util
 
 
 class Pertubation(ABC):
@@ -175,7 +178,6 @@ def eigenvalueCentrality(M, adjacency_matrix, top_k, status):
     top_k_M = torch.where(torch.abs(top_k_M) < epsilon, torch.tensor(0.0), top_k_M)
     return top_k_M
 
-
 def pageRank(M, adjacency_matrix, top_k, status):
     adj_numpy = adjacency_matrix.cpu().numpy()
     G = nx.from_numpy_array(adj_numpy)
@@ -194,23 +196,23 @@ def pageRank(M, adjacency_matrix, top_k, status):
     return top_k_M
 
 
-def adjust_mask_tensor(self, mask_tensor, num_nodes):
-    '''
-    Adjusts mask_tensor to have the correct number of nodes.
-    '''
-    current_nodes = mask_tensor.size(2)
-    if current_nodes < num_nodes:
-        pad_size = num_nodes - current_nodes
-        mask_tensor = torch.cat([mask_tensor, torch.zeros(mask_tensor.size(0), mask_tensor.size(1), pad_size, mask_tensor.size(3), device=mask_tensor.device)], dim=2)
-    elif current_nodes > num_nodes:
-        mask_tensor = mask_tensor[:, :, :num_nodes, :]
-    return mask_tensor
-
 class FadeMovingAverage_TopK(Pertubation):
     def __init__(self, device, eps=1.0e-7, alpha_init=0.9):
         super().__init__(device, eps)
         self.alpha = torch.tensor(alpha_init, requires_grad=True, device=device)
     
+    def adjust_mask_tensor(self, mask_tensor, num_nodes):
+        '''
+        Adjusts mask_tensor to have the correct number of nodes.
+        '''
+        current_nodes = mask_tensor.size(2)
+        if current_nodes < num_nodes:
+            pad_size = num_nodes - current_nodes
+            mask_tensor = torch.cat([mask_tensor, torch.zeros(mask_tensor.size(0), mask_tensor.size(1), pad_size, mask_tensor.size(3), device=mask_tensor.device)], dim=2)
+        elif current_nodes > num_nodes:
+            mask_tensor = mask_tensor[:, :, :num_nodes, :]
+        return mask_tensor
+
     def apply(self, X, mask_tensor, top_k, status):
         '''
         X: [batch_size, channels, num_nodes, time_steps]

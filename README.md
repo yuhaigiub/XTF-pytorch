@@ -66,7 +66,17 @@ python test.py --dataset METR-LA --start 99 \
 ```
 
 ### Run STEP
+To run on any dataset, make sure you have the checkpoint file (`.pth` file) in the right location:
+```bash
+/save_blackbox
+|
+|
+|----/[Dataset Name]
+          |
+          |----G_T_model_[epoch].pth
+```
+You can refer to the `.pth` files from the available checkpoints in the` /checkpoints` folder. Then, run the following command:
 ```bash
 cd STEP
-python main_XAI.py
+python main_XAI.py --blackbox_file "../save_blackbox/METR-LA/G_T_model_99.pth"
 ```

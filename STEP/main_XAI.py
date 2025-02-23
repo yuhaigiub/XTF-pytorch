@@ -1,38 +1,37 @@
 import argparse
 import os
+import sys
 import time
+
 import numpy as np
 import torch
-import util
-from pertubate import FadeMovingAverage, FadeMovingAverage_TopK, FadeMovingAverage_Random, perturbate_node, degreeCentrality, closenessCentrality
+
+from pertubate import FadeMovingAverage_TopK, perturbate_node, degreeCentrality, closenessCentrality
 from engine_XAI import EngineXAI
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import util
 from model import MSTE
 
 parser = argparse.ArgumentParser()
 
-
 parser.add_argument('--device', type=str, default='cuda', help='device to run the model on')
-parser.add_argument('--data', type=str, default='./store/METR-LA', help='data path')
-parser.add_argument('--adjdata', type=str, default='./store/METR-LA/adj_mx.pkl', help='adj data path')
+parser.add_argument('--data', type=str, default='../store/METR-LA', help='data path')
+parser.add_argument('--adjdata', type=str, default='../store/METR-LA/adj_mx.pkl', help='adj data path')
 parser.add_argument('--learning_rate', type=float, default=0.001, help='learning rate')
 parser.add_argument('--weight_decay', type=float, default=0.0001, help='weight decay rate')
 parser.add_argument('--print_every', type=int, default=50, help='')
-parser.add_argument('--save', type=str, default='saved_models/XAI/GWNET', help='save path')
+parser.add_argument('--save', type=str, default='saved_models/XAI/', help='save path')
 parser.add_argument('--blackbox_file', 
                     type=str, 
-                    default='save_blackbox/G_T_model_0.pth', 
+                    default='../save_blackbox/METR-LA/G_T_model_0.pth', 
                     help='blackbox .pth file')
 parser.add_argument('--num_nodes', type=int, default=207, help='number of nodes')
-parser.add_argument('--seq_len', type=int, default=12, help='time step')
-parser.add_argument('--in_dim', type=int, default=2, help='in channels')
 parser.add_argument('--out_dim', type=int, default=1, help='out channels')
 parser.add_argument('--batch_size', type=int, default=16, help='settings')
 parser.add_argument('--epochs', type=int, default=1, help='settings')
 parser.add_argument('--iter_epoch', type=int, default=-1, help='using for save pth file')
 parser.add_argument('--single_test', type=bool, default=True, help='settings')
 parser.add_argument('--n_cells', type=int, default=3, help='number of ensemble cells')
-parser.add_argument('--conv_dim', type=int, default=32, help='settings')
-parser.add_argument('--end_dim', type=int, default=64, help='settings')
 parser.add_argument('--train_loss', type=str, default='mae', help='settings')
 parser.add_argument('--test_loss', type=str, default='mae', help='settings')
 parser.add_argument('--huber_delta', type=float, default=1.0)
@@ -40,6 +39,26 @@ parser.add_argument('--setting_id', type=str, default="Int")
 parser.add_argument('--combine_method', type=str, default='mean', choices=['sum', 'mean'])
 parser.add_argument('--decoder_method', type=str, default='1', choices=['1', '2'])
 
+parser.add_argument('--in_dim', type=int, default=2)
+parser.add_argument('--seq_len', type=int, default=12, help='time step')
+parser.add_argument('--conv_dim', type=int, default=32)
+parser.add_argument('--end_dim', type=int, default=128)
+
+parser.add_argument('--n_experts', type=int, default=3)
+parser.add_argument('--n_stacks', type=int, default=2)
+# number of blocks
+parser.add_argument('--time_0', type=float, default=0.9)
+parser.add_argument('--step_0', type=float, default=0.9)
+# number of temporal ode steps
+parser.add_argument('--time_1', type=float, default=0.9)
+parser.add_argument('--step_1', type=float, default=0.3)
+# number of spatial ode steps
+parser.add_argument('--time_2', type=float, default=0.9)
+parser.add_argument('--step_2', type=float, default=0.3)
+
+parser.add_argument('--dropout', type=float, default=0.5)
+parser.add_argument('--decoder_types', type=str, default='1,2',
+                        help='number separated by comma (no whitespace allowed)')
 DATASET_CHOICES = ['METR-LA', 'PEMS-BAY', 'PEMS03', 'PEMS04', 'PEMS07', 'PEMS08']
 parser.add_argument('--dataset', type=str, default='METR-LA', 
                     choices=DATASET_CHOICES)
@@ -47,28 +66,41 @@ parser.add_argument('--dataset', type=str, default='METR-LA',
 
 args = parser.parse_args()
 
+
+args.data = '../store/{}'.format(args.dataset)
+args.adjdata = '../store/{}/adj_mx.pkl'.format(args.dataset)
+    
 def main():
     device = torch.device(args.device)
-    _, _, adj_mx = util.load_adj(args.adjdata)
-    dataloader = util.load_dataset(args.data, args.batch_size, args.batch_size, args.batch_size)
+    try:
+        _, _, adj_mx_ = util.load_adj(args.adjdata)
+    except:
+        adj_mx_ = util.load_adj(args.adjdata)
+    
+    adj_mx = torch.tensor(adj_mx_).to(device)
+    dataloader = util.load_dataset(args.data, args.batch_size)
     scaler = dataloader['scaler']
     pertubate = FadeMovingAverage_TopK(device)
-    
-    model = MSTE(n_experts=3, n_stacks=1,
-                 in_dim=args.in_dim, seq_len=args.seq_len,
-                 conv_dim=args.conv_dim, end_dim=args.end_dim,
-                 adj_mx=adj_mx,
-                 time_0=0.9, step_size_0=0.45,
-                 time_1=0.9, step_size_1=0.9,
-                 time_2=0.9, step_size_2=0.3,)
+    decoder_types = [int(x) for x in args.decoder_types.split(',')]
+    model = MSTE(args.n_experts, args.n_stacks,
+                 args.in_dim, args.seq_len,
+                 args.conv_dim, args.end_dim,
+                 adj_mx,
+                 args.time_0, args.step_0,
+                 args.time_1, args.step_1,
+                 args.time_2, args.step_2,
+                 decoder_types,
+                 args.dropout)
 
-    blackbox =  MSTE(n_experts=3, n_stacks=1,
-                 in_dim=args.in_dim, seq_len=args.seq_len,
-                 conv_dim=args.conv_dim, end_dim=args.end_dim,
-                 adj_mx=adj_mx,
-                 time_0=0.9, step_size_0=0.45,
-                 time_1=0.9, step_size_1=0.9,
-                 time_2=0.9, step_size_2=0.3,)
+    blackbox = MSTE(args.n_experts, args.n_stacks,
+                 args.in_dim, args.seq_len,
+                 args.conv_dim, args.end_dim,
+                 adj_mx,
+                 args.time_0, args.step_0,
+                 args.time_1, args.step_1,
+                 args.time_2, args.step_2,
+                 decoder_types,
+                 args.dropout)
     blackbox.load_state_dict(torch.load(args.blackbox_file))
     
     engine = EngineXAI(scaler,
@@ -81,7 +113,7 @@ def main():
                        args.num_nodes, 
                        args.learning_rate, args.weight_decay, 
                        device, 
-                       adj_mx,
+                       adj_mx_,
                        train_loss=args.train_loss,
                        test_loss=args.test_loss)
     
@@ -126,6 +158,7 @@ def main():
             if iter % args.print_every == 0:
                 log = 'Iter: {:03d}, Train Loss: {:.4f}, Train MAPE: ' + '{:.4f}, Train RMSE: {:.4f}'
                 print(log.format(iter, train_loss[-1], train_mape[-1], train_rmse[-1]), flush=True)
+               
         t2 = time.time()
         train_time.append(t2 - t1)
         
@@ -140,6 +173,7 @@ def main():
             valid_loss.append(metrics[0])
             valid_mape.append(metrics[1])
             valid_rmse.append(metrics[2])
+            
         s2 = time.time()
         log = 'Epoch: {:03d}, Inference Time: {:.4f} secs'
         print(log.format(i, (s2 - s1)))
