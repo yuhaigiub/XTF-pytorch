@@ -33,7 +33,8 @@ python generate_data.py --dataset METR-LA
 
 ### Run MSTE
 
-Pretrained checkpoints are included in `/checkpoints/[Dataset Name]` folder, as well as screenshots of running `test.py` on each checkpoint in `figures/result_[Dataset Name].jpg`.
+Pretrained checkpoints are included in `/checkpoints/[Dataset Name]` folder, as well as screenshots of running `test.py` on each checkpoint in `figures/result_[Dataset Name].jpg`:
+![METR-LA result](figures/result_METR-LA.jpg)
 
 #### Training
 To run training on any dataset, run the `train.py`. You can reference the `checkpoints/run.sh` file for detailed configurations on each dataset:
