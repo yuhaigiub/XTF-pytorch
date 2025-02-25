@@ -38,6 +38,9 @@ parser.add_argument('--huber_delta', type=float, default=1.0)
 parser.add_argument('--setting_id', type=str, default="Int")
 parser.add_argument('--combine_method', type=str, default='mean', choices=['sum', 'mean'])
 parser.add_argument('--decoder_method', type=str, default='1', choices=['1', '2'])
+parser.add_argument('--milestones', type=str, default=None, 
+                        help='number separated by comma (no whitespace allowed)')
+parser.add_argument('--clip', type=float, default=3)
 
 parser.add_argument('--in_dim', type=int, default=2)
 parser.add_argument('--seq_len', type=int, default=12, help='time step')
