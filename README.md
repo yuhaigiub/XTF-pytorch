@@ -7,7 +7,7 @@ Advances in technology have facilitated the trans formation of transportation sy
 ![ Framework Overview](figures/Framework_Overview.jpg)
 
 ### Requirements
-This version runs on Python 3.11. To install requirements, run:
+This code requires python>=3.9. To install requirements, run:
 ```bash
 pip install -r requirements.txt
 ```
