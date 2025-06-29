@@ -1,5 +1,12 @@
 # XTF: eXplainable Traffic Forecasting Framework using Multiple Spatio-Temporal ODE Experts
 
+## Requirements
+This project use python 3.10 and pytorch 12.6 or 12.8
+
+After installing python and pytorch, run the following command to install all dependencies:
+
+`pip install -r requirements.txt`
+
 ## MSTE
 
 Train
