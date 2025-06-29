@@ -1,3 +1,0 @@
-python main_XAI.py --blackbox_file "../save_blackbox/METR-LA/G_T_model_99.pth" --n_experts 3 --n_stacks 2 --time_0 0.9 --step_0 0.9 --time_1 0.9 --step_1 0.3 --time_2 0.9 --step_2 0.3 --end_dim 128 --decoder_types 1,2
-
-python main_XAI.py --blackbox_file "../save_blackbox/PEMS-BAY/G_T_model_99.pth" --n_experts 3 --n_stacks 3 --time_0 0.9 --step_0 0.9 --time_1 0.9 --step_1 0.3 --time_2 0.9 --step_2 0.3 --end_dim 64 --decoder_types 1,1
